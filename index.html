@@ -46,42 +46,19 @@
             max-width: 100% !important;
             margin: 0 auto !important;
         }
-        /* Compact in-embed audio bar (browser requires a click inside this frame for sound) */
-        #embedAudioBar { display: none; }
-        body.wix-embed #embedAudioBar {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            flex-wrap: wrap;
-            padding: 8px 10px 10px;
-            background: #f1f5f9;
-            border-bottom: 1px solid #e2e8f0;
-            position: sticky;
-            top: 0;
-            z-index: 40;
-        }
-        body.wix-embed #embedAudioBar button {
-            font-size: 13px;
-            font-weight: 600;
-            padding: 8px 16px;
-            border-radius: 10px;
-            border: none;
-            cursor: pointer;
-        }
-        body.wix-embed #embedAudioBar .emb-play {
-            background: #059669;
-            color: #fff;
-        }
-        body.wix-embed #embedAudioBar .emb-stop {
-            background: #e2e8f0;
-            color: #334155;
-        }
-        body.wix-embed #embedAudioBar .emb-hint {
-            font-size: 11px;
-            color: #64748b;
-            width: 100%;
-            text-align: center;
+        /* Embed Play/Stop bar stays in DOM for JS hooks but is never shown (Wix owns UI) */
+        #embedAudioBar {
+            position: absolute !important;
+            width: 1px !important;
+            height: 1px !important;
+            padding: 0 !important;
+            margin: -1px !important;
+            overflow: hidden !important;
+            clip: rect(0, 0, 0, 0) !important;
+            white-space: nowrap !important;
+            border: 0 !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
         }
         /* Full-frame gate when Wix Play is clicked but audio is still locked */
         #embedAudioGate {
