@@ -8601,9 +8601,8 @@ async function ensureAudioUnlocked() {
     } catch (e3) {}
     const state = (Tone.context && Tone.context.state) ||
         (Tone.getContext && Tone.getContext().state) || '';
-    const ok = state === 'running';
-    if (ok) audioUnlockedByUserGesture = true;
-    return ok;
+    // Do NOT set audioUnlockedByUserGesture here — only a real in-frame Play gate click may set it
+    return state === 'running';
 }
 
 function isAudioRunning() {
@@ -8712,20 +8711,15 @@ async function playAllWorksheets(opts) {
         return;
     }
 
-    // Wix Start Playback → always use gate until user has clicked inside this iframe once
+    // Wix page button → postMessage: ALWAYS show in-frame gate until user has unlocked via gate click.
+    // Parent-page clicks can never start AudioContext in this cross-origin iframe.
     if (fromPostMessage && isWixEmbedMode() && !audioUnlockedByUserGesture) {
         showEmbedAudioGateAndPlay('play');
         return;
     }
 
-    // Already unlocked (or local full-page UI with real click)
-    if (audioUnlockedByUserGesture || isAudioRunning() || !isWixEmbedMode()) {
-        await playAllWorksheetsFromUserGesture();
-        return;
-    }
-
-    // Embed but not yet unlocked
-    showEmbedAudioGateAndPlay('play');
+    // Local full UI, or embed after a successful gate click
+    await playAllWorksheetsFromUserGesture();
 }
 
 async function testMetronome() {
@@ -9050,7 +9044,8 @@ function setupPostMessageHandler() {
                 if (input) input.value = String(bpm);
                 updateTempoDisplay();
             }
-            // CRITICAL: fromPostMessage → show in-iframe gate (parent click cannot unlock audio)
+            // CRITICAL: always pass fromPostMessage so we show the in-iframe gate
+            console.log('[RhythmGen] play from Wix parent → audio gate');
             playAllWorksheets({ fromPostMessage: true }).catch((e) => {
                 console.warn('[RhythmGen] play failed', e);
             });
@@ -9091,12 +9086,9 @@ function setupPostMessageHandler() {
         }
     };
 
-    // Embed: any click/tap on the worksheet area unlocks audio for later Wix Play clicks
-    if (isWixEmbedMode()) {
-        const unlock = () => { ensureAudioUnlocked().catch(() => {}); };
-        document.addEventListener('pointerdown', unlock, { passive: true });
-        document.addEventListener('keydown', unlock, { passive: true });
-    }
+    // Do NOT call Tone.start() on random pointerdown — it floods the console with
+    // "AudioContext was not allowed to start" and never counts as a reliable unlock.
+    // Unlock only happens on the explicit gate button click.
 
     // Notify parent that the embed is ready (helps Wix initialization)
     setTimeout(() => {
