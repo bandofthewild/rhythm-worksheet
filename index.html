@@ -25,13 +25,28 @@
             font-weight: 600;
         }
 
-        /* Wix embed mode (?embed=1): hide local generator chrome; only worksheet + toolbar */
+        /* Wix embed mode (?embed=1): ONLY the worksheet pages — Wix owns all controls */
         body.wix-embed .wix-hide-in-embed { display: none !important; }
-        body.wix-embed { background: #f8fafc; }
-        body.wix-embed .max-w-\[1280px\] { max-width: 100%; padding: 8px 4px 16px; }
-        body.wix-embed #previewContainer { border: none; border-radius: 0; background: transparent; }
-        /* Non-premium: block browser print of embed content (Ctrl+P) */
-        body.wix-embed.wix-print-blocked @media print { } /* placeholder — see premiumPrintGuard style */
+        body.wix-embed { background: #ffffff; }
+        body.wix-embed .max-w-\[1280px\] { max-width: 100%; padding: 0; margin: 0; }
+        body.wix-embed #previewContainer {
+            border: none !important;
+            border-radius: 0 !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+        }
+        body.wix-embed #worksheetToolbar,
+        body.wix-embed #statusBar,
+        body.wix-embed #emptyState,
+        body.wix-embed .mt-4.text-center.text-\[10px\] {
+            display: none !important;
+        }
+        body.wix-embed #worksheetsContainer {
+            max-width: 100% !important;
+            margin: 0 auto !important;
+        }
+        /* Non-premium print block is applied via #premiumPrintGuard style tag */
 
         .worksheet-canvas {
             border: 1px solid #cbd5e1;
@@ -637,7 +652,7 @@
         </div>
 
         <!-- Status Bar -->
-        <div id="statusBar" class="mb-3 px-1 flex items-center justify-between text-xs text-slate-500 no-print">
+        <div id="statusBar" class="mb-3 px-1 flex items-center justify-between text-xs text-slate-500 no-print wix-hide-in-embed">
             <div id="statusText">Ready — adjust controls and click Generate, or change values for live updates.</div>
             <div id="measureInfo" class="font-mono"></div>
         </div>
@@ -646,7 +661,7 @@
         <div class="preview-area rounded-3xl border border-slate-200" id="previewContainer">
             
             <!-- Worksheet Toolbar -->
-            <div id="worksheetToolbar" class="max-w-[8.75in] mx-auto mb-3 flex flex-wrap items-center gap-x-2 gap-y-2 no-print">
+            <div id="worksheetToolbar" class="max-w-[8.75in] mx-auto mb-3 flex flex-wrap items-center gap-x-2 gap-y-2 no-print wix-hide-in-embed">
                 <button onclick="generateWorksheets()" 
                         class="bg-blue-900 hover:bg-blue-950 text-white px-4 py-2 rounded-2xl text-sm font-semibold flex items-center gap-x-2">
                     Generate Worksheet
@@ -691,7 +706,7 @@
             </div>
         </div>
 
-        <div class="mt-4 text-center text-[10px] text-slate-400 no-print">
+        <div class="mt-4 text-center text-[10px] text-slate-400 no-print wix-hide-in-embed">
             Professional engraving powered by VexFlow 5 • Audio by Tone.js • Designed for music educators
         </div>
     </div>
