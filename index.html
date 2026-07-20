@@ -65,34 +65,43 @@
         }
         /* Local full app: also hide this bar (local uses #worksheetToolbar Play) */
         #embedAudioBar { display: none !important; }
-        /* Full-frame gate when Wix Play is clicked but audio is still locked */
+        /* Full-frame gate: must be clicked inside iframe to unlock sound (Wix Play → postMessage) */
         #embedAudioGate {
             display: none;
             position: fixed;
             inset: 0;
-            z-index: 9999;
-            background: rgba(15, 23, 42, 0.55);
+            z-index: 2147483646;
+            background: rgba(15, 23, 42, 0.72);
             align-items: center;
             justify-content: center;
-            padding: 16px;
+            padding: 20px;
+            box-sizing: border-box;
         }
-        #embedAudioGate.show { display: flex; }
+        #embedAudioGate.show { display: flex !important; }
+        #embedAudioGate .gate-card {
+            background: #fff;
+            border-radius: 16px;
+            padding: 22px 26px;
+            max-width: 320px;
+            text-align: center;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.35);
+        }
         #embedAudioGate button {
             background: #059669;
             color: #fff;
             border: none;
-            border-radius: 14px;
-            padding: 16px 28px;
+            border-radius: 12px;
+            padding: 14px 22px;
             font-size: 16px;
             font-weight: 700;
             cursor: pointer;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+            width: 100%;
         }
         #embedAudioGate p {
-            color: #e2e8f0;
-            font-size: 13px;
-            margin: 0 0 12px;
-            text-align: center;
+            color: #334155;
+            font-size: 14px;
+            margin: 0 0 14px;
+            line-height: 1.4;
         }
         /* Non-premium print block is applied via #premiumPrintGuard style tag */
 
@@ -564,8 +573,8 @@
         <div class="emb-hint">Sound must start with a click in this panel (browser security). Your Wix Play button opens this if needed.</div>
     </div>
     <div id="embedAudioGate" class="no-print" aria-hidden="true">
-        <div>
-            <p>Click once to enable sound and play</p>
+        <div class="gate-card">
+            <p><strong>One click needed for sound</strong><br/>Browsers block audio until you click inside this panel.</p>
             <button type="button" id="embedAudioGateBtn">▶ Enable sound &amp; Play</button>
         </div>
     </div>
@@ -8564,6 +8573,9 @@ async function playWorksheet(worksheetId, buttonElement) {
     }
 }
 
+/** Set true only after a real click/tap inside this iframe (not via postMessage). */
+let audioUnlockedByUserGesture = false;
+
 /** Unlock Web Audio (must run during a real click/tap inside THIS document) */
 async function ensureAudioUnlocked() {
     if (typeof Tone === 'undefined') {
@@ -8589,7 +8601,9 @@ async function ensureAudioUnlocked() {
     } catch (e3) {}
     const state = (Tone.context && Tone.context.state) ||
         (Tone.getContext && Tone.getContext().state) || '';
-    return state === 'running';
+    const ok = state === 'running';
+    if (ok) audioUnlockedByUserGesture = true;
+    return ok;
 }
 
 function isAudioRunning() {
@@ -8601,29 +8615,53 @@ function isAudioRunning() {
     return false;
 }
 
+function hideEmbedAudioGate() {
+    const gate = document.getElementById('embedAudioGate');
+    if (!gate) return;
+    gate.classList.remove('show');
+    gate.setAttribute('aria-hidden', 'true');
+}
+
 /**
- * Browsers block AudioContext when Play is triggered via postMessage from the Wix page
- * (cross-origin iframe). Show a one-click gate inside this frame, then start playback.
+ * Browsers block AudioContext when Play is triggered via postMessage from the Wix page.
+ * Show a large in-frame button the user must click once, then start playback.
  */
-function showEmbedAudioGateAndPlay() {
+function showEmbedAudioGateAndPlay(mode) {
+    // mode: 'play' | 'testTempo'
     const gate = document.getElementById('embedAudioGate');
     const btn = document.getElementById('embedAudioGateBtn');
     if (!gate || !btn) {
-        // Fallback: try play anyway
-        playAllWorksheetsFromUserGesture();
+        console.error('[RhythmGen] embedAudioGate missing from DOM');
         return;
     }
+    console.log('%c[RhythmGen] Showing audio gate — click the green button in the worksheet panel', 'color:#059669;font-weight:bold');
     gate.classList.add('show');
     gate.setAttribute('aria-hidden', 'false');
-    const onClick = async (e) => {
+    btn.textContent = mode === 'testTempo'
+        ? '▶ Enable sound & Test tempo'
+        : '▶ Enable sound & Play';
+
+    // Replace button to drop any previous listeners
+    const fresh = btn.cloneNode(true);
+    btn.parentNode.replaceChild(fresh, btn);
+    fresh.addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
-        btn.removeEventListener('click', onClick);
-        gate.classList.remove('show');
-        gate.setAttribute('aria-hidden', 'true');
-        await playAllWorksheetsFromUserGesture();
-    };
-    btn.addEventListener('click', onClick);
+        hideEmbedAudioGate();
+        audioUnlockedByUserGesture = true;
+        try {
+            await ensureAudioUnlocked();
+            if (mode === 'testTempo') {
+                await testMetronome();
+            } else {
+                await playAllWorksheetsFromUserGesture();
+            }
+        } catch (err) {
+            console.error('[RhythmGen] gate play failed', err);
+        }
+    });
+    // Scroll gate into view inside iframe if needed
+    try { gate.scrollIntoView({ block: 'center' }); } catch (e) {}
 }
 
 /** Actual play entry after a real user gesture in this document */
@@ -8644,6 +8682,7 @@ async function playAllWorksheetsFromUserGesture() {
     }
 
     await ensureAudioUnlocked();
+    audioUnlockedByUserGesture = true;
 
     const first = currentWorksheets[0];
     await playWorksheet(first.id, toolbarBtn || {
@@ -8655,10 +8694,12 @@ async function playAllWorksheetsFromUserGesture() {
 }
 
 /**
- * Play from embed bar (user gesture) OR from Wix postMessage.
- * postMessage path shows a one-click gate if audio is still locked.
+ * @param {{ fromPostMessage?: boolean }} [opts]
+ * fromPostMessage: true when Wix parent sent play (cannot unlock audio alone).
  */
-async function playAllWorksheets() {
+async function playAllWorksheets(opts) {
+    const fromPostMessage = !!(opts && opts.fromPostMessage);
+
     if (!currentWorksheets.length) {
         const msg = 'Generate a worksheet first, then press Play.';
         if (isWixEmbedMode()) postToWixParent({ action: 'showAlert', message: msg });
@@ -8671,27 +8712,20 @@ async function playAllWorksheets() {
         return;
     }
 
-    // If audio already running (prior click in this frame), play immediately
-    if (isAudioRunning()) {
+    // Wix Start Playback → always use gate until user has clicked inside this iframe once
+    if (fromPostMessage && isWixEmbedMode() && !audioUnlockedByUserGesture) {
+        showEmbedAudioGateAndPlay('play');
+        return;
+    }
+
+    // Already unlocked (or local full-page UI with real click)
+    if (audioUnlockedByUserGesture || isAudioRunning() || !isWixEmbedMode()) {
         await playAllWorksheetsFromUserGesture();
         return;
     }
 
-    // Try unlock (works when this function was called from a click in this frame)
-    const ok = await ensureAudioUnlocked();
-    if (ok) {
-        await playAllWorksheetsFromUserGesture();
-        return;
-    }
-
-    // Wix parent button → postMessage: no gesture in this frame → need gate click
-    if (isWixEmbedMode()) {
-        console.warn('[RhythmGen] Audio locked — showing in-frame Play gate');
-        showEmbedAudioGateAndPlay();
-        return;
-    }
-
-    alert('Playback failed. Click Play again (browser blocked audio until a click).');
+    // Embed but not yet unlocked
+    showEmbedAudioGateAndPlay('play');
 }
 
 async function testMetronome() {
@@ -9016,9 +9050,8 @@ function setupPostMessageHandler() {
                 if (input) input.value = String(bpm);
                 updateTempoDisplay();
             }
-            // Parent-page clicks cannot unlock AudioContext in this cross-origin iframe.
-            // playAllWorksheets() will show an in-frame "Enable sound & Play" gate if needed.
-            playAllWorksheets().catch((e) => {
+            // CRITICAL: fromPostMessage → show in-iframe gate (parent click cannot unlock audio)
+            playAllWorksheets({ fromPostMessage: true }).catch((e) => {
                 console.warn('[RhythmGen] play failed', e);
             });
             return;
@@ -9026,13 +9059,7 @@ function setupPostMessageHandler() {
 
         if (msg.action === 'stop') {
             try { stopPlayback(); } catch (e) {}
-            try {
-                const gate = document.getElementById('embedAudioGate');
-                if (gate) {
-                    gate.classList.remove('show');
-                    gate.setAttribute('aria-hidden', 'true');
-                }
-            } catch (e2) {}
+            try { hideEmbedAudioGate(); } catch (e2) {}
             return;
         }
 
@@ -9045,30 +9072,11 @@ function setupPostMessageHandler() {
                 if (input) input.value = String(bpm);
                 updateTempoDisplay();
             }
-            // Same gate policy as play (metronome also needs AudioContext)
-            (async () => {
-                if (isAudioRunning() || await ensureAudioUnlocked()) {
-                    await testMetronome();
-                    return;
-                }
-                if (isWixEmbedMode()) {
-                    const gate = document.getElementById('embedAudioGate');
-                    const btn = document.getElementById('embedAudioGateBtn');
-                    if (gate && btn) {
-                        gate.classList.add('show');
-                        const onClick = async (e) => {
-                            e.preventDefault();
-                            btn.removeEventListener('click', onClick);
-                            gate.classList.remove('show');
-                            await ensureAudioUnlocked();
-                            await testMetronome();
-                        };
-                        btn.addEventListener('click', onClick);
-                        return;
-                    }
-                }
-                await testMetronome();
-            })().catch((e) => console.warn('[RhythmGen] testTempo failed', e));
+            if (isWixEmbedMode() && !audioUnlockedByUserGesture) {
+                showEmbedAudioGateAndPlay('testTempo');
+            } else {
+                testMetronome().catch((e) => console.warn('[RhythmGen] testTempo failed', e));
+            }
             return;
         }
 
