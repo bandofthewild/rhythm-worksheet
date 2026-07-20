@@ -8247,7 +8247,7 @@ async function playWorksheet(worksheetId, buttonElement) {
     }
 
     try {
-        await Tone.start();
+        await ensureAudioUnlocked();
 
         const bpm = getTempoBpm();
         const timeSig = ws.timeSig || '4/4';
@@ -8494,9 +8494,37 @@ async function playWorksheet(worksheetId, buttonElement) {
     }
 }
 
+/** Unlock Web Audio (needed when Play is clicked on the Wix parent page, not inside the iframe) */
+async function ensureAudioUnlocked() {
+    if (typeof Tone === 'undefined') {
+        throw new Error('Tone.js not loaded');
+    }
+    try {
+        await Tone.start();
+    } catch (e) {
+        console.warn('[RhythmGen] Tone.start()', e);
+    }
+    try {
+        if (Tone.context && typeof Tone.context.resume === 'function') {
+            await Tone.context.resume();
+        }
+    } catch (e2) {
+        console.warn('[RhythmGen] Tone.context.resume()', e2);
+    }
+    try {
+        if (Tone.getContext && Tone.getContext().rawContext &&
+            Tone.getContext().rawContext.state === 'suspended') {
+            await Tone.getContext().rawContext.resume();
+        }
+    } catch (e3) {}
+    return !!(Tone.context && Tone.context.state === 'running');
+}
+
 async function playAllWorksheets() {
     if (!currentWorksheets.length) {
-        alert('Generate worksheets first.');
+        const msg = 'Generate a worksheet first, then press Play.';
+        if (isWixEmbedMode()) postToWixParent({ action: 'showAlert', message: msg });
+        else alert(msg);
         return;
     }
 
@@ -8507,10 +8535,17 @@ async function playAllWorksheets() {
         return;
     }
 
+    const ok = await ensureAudioUnlocked();
+    if (!ok && isWixEmbedMode()) {
+        console.warn('[RhythmGen] Audio context still suspended — retrying play anyway');
+    }
+
     const first = currentWorksheets[0];
     await playWorksheet(first.id, toolbarBtn || {
         innerHTML: '',
-        classList: { add() {}, remove() {} }
+        classList: { add() {}, remove() {} },
+        disabled: false,
+        style: {}
     });
 }
 
@@ -8521,7 +8556,7 @@ async function testMetronome() {
     }
 
     try {
-        await Tone.start();
+        await ensureAudioUnlocked();
         const bpm = getTempoBpm();
         const ts = (document.getElementById('dropdownTimeSignature') || {}).value || '4/4';
         const meter = getMeterPlaybackConfig(ts);
@@ -8836,12 +8871,32 @@ function setupPostMessageHandler() {
                 if (input) input.value = String(bpm);
                 updateTempoDisplay();
             }
-            try { playAllWorksheets(); } catch (e) { console.warn(e); }
+            // Must await — async audio unlock + schedule (sync try/catch misses rejections)
+            playAllWorksheets().catch((e) => {
+                console.warn('[RhythmGen] play failed', e);
+                postToWixParent({
+                    action: 'showAlert',
+                    message: 'Playback could not start. Click Generate, then Play again.'
+                });
+            });
             return;
         }
 
         if (msg.action === 'stop') {
             try { stopPlayback(); } catch (e) {}
+            return;
+        }
+
+        if (msg.action === 'testTempo' || msg.action === 'testMetronome') {
+            if (msg.data && msg.data.tempo != null) {
+                const bpm = Math.max(40, Math.min(220, parseInt(msg.data.tempo, 10) || 90));
+                const slider = document.getElementById('tempoSlider');
+                const input = document.getElementById('tempoInput');
+                if (slider) slider.value = String(bpm);
+                if (input) input.value = String(bpm);
+                updateTempoDisplay();
+            }
+            testMetronome().catch((e) => console.warn('[RhythmGen] testTempo failed', e));
             return;
         }
 
@@ -8855,6 +8910,13 @@ function setupPostMessageHandler() {
             return;
         }
     };
+
+    // Embed: any click/tap on the worksheet area unlocks audio for later Wix Play clicks
+    if (isWixEmbedMode()) {
+        const unlock = () => { ensureAudioUnlocked().catch(() => {}); };
+        document.addEventListener('pointerdown', unlock, { passive: true });
+        document.addEventListener('keydown', unlock, { passive: true });
+    }
 
     // Notify parent that the embed is ready (helps Wix initialization)
     setTimeout(() => {
