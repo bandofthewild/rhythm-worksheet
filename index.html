@@ -46,20 +46,25 @@
             max-width: 100% !important;
             margin: 0 auto !important;
         }
-        /* Embed Play/Stop bar stays in DOM for JS hooks but is never shown (Wix owns UI) */
-        #embedAudioBar {
-            position: absolute !important;
-            width: 1px !important;
-            height: 1px !important;
-            padding: 0 !important;
-            margin: -1px !important;
+        /* Embed Play/Stop bar: hidden in Wix embed (Wix owns Play/Stop UI). Gate overlay still used. */
+        body.wix-embed #embedAudioBar,
+        body.wix-embed #embedAudioBar * {
+            display: none !important;
+            visibility: hidden !important;
+            height: 0 !important;
+            max-height: 0 !important;
+            width: 0 !important;
             overflow: hidden !important;
-            clip: rect(0, 0, 0, 0) !important;
-            white-space: nowrap !important;
-            border: 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            border: none !important;
             opacity: 0 !important;
             pointer-events: none !important;
+            position: absolute !important;
+            left: -9999px !important;
         }
+        /* Local full app: also hide this bar (local uses #worksheetToolbar Play) */
+        #embedAudioBar { display: none !important; }
         /* Full-frame gate when Wix Play is clicked but audio is still locked */
         #embedAudioGate {
             display: none;
@@ -922,6 +927,15 @@ function applyWixEmbedChrome() {
     // Default locked until Velo sends isPremium: true
     isPremium = false;
     updatePremiumPrintGuard();
+    // Force-hide redundant Play/Stop bar (Wix owns those controls)
+    try {
+        const bar = document.getElementById('embedAudioBar');
+        if (bar) {
+            bar.setAttribute('hidden', 'true');
+            bar.style.cssText = 'display:none!important;visibility:hidden!important;height:0!important;overflow:hidden!important;';
+            bar.innerHTML = ''; // remove visible Play/Stop/hint nodes entirely
+        }
+    } catch (e) {}
     console.log('%c[RhythmGen] Wix embed mode active', 'color:#1e3a8a');
 }
 
