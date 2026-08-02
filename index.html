@@ -36,7 +36,7 @@
             max-width: 100% !important;
             height: auto !important;
             min-height: 100% !important;
-            overflow-x: auto !important;
+            overflow-x: hidden !important;
             overflow-y: auto !important;
             -webkit-overflow-scrolling: touch;
             touch-action: pan-x pan-y;
@@ -62,27 +62,40 @@
             max-width: 100% !important;
             width: 100% !important;
             margin: 0 auto !important;
-            overflow-x: auto !important;
-            overflow-y: visible !important;
+            overflow: visible !important;
             -webkit-overflow-scrolling: touch;
-            touch-action: pan-x pan-y;
         }
-        /* Mobile / narrow embed: letter-page must not clip; staff scales to fit width */
+        /* Outer shell: holds one letter page scaled to fit the embed width */
+        .worksheet-page-fit {
+            width: 100%;
+            max-width: 100%;
+            margin: 0 auto 0.55rem;
+            overflow: hidden;
+            position: relative;
+            box-sizing: border-box;
+        }
         body.wix-embed .worksheet-set {
             width: 100% !important;
             max-width: 100% !important;
-            margin-bottom: 0.75rem !important;
+            margin-bottom: 0 !important;
             overflow: visible !important;
         }
-        body.wix-embed .worksheet-container {
-            width: 100% !important;
-            max-width: 100% !important;
-            min-height: 0 !important;
-            max-height: none !important;
-            height: auto !important;
-            overflow: visible !important;
-            padding: 0.18in 0.1in 0.14in 0.1in !important;
+        /*
+         * Letter page stays true 8.5×11 for engraving + print.
+         * JS applies transform: scale() so the whole page fits in the embed box on mobile.
+         */
+        body.wix-embed .worksheet-page-fit .worksheet-container,
+        .worksheet-page-fit .worksheet-container {
+            width: 8.5in !important;
+            max-width: 8.5in !important;
+            min-height: 10.3in !important;
+            max-height: 10.3in !important;
+            height: 10.3in !important;
             box-sizing: border-box !important;
+            transform-origin: top left;
+            overflow: hidden !important;
+            padding: 0.15in 0.45in 0.12in 0.45in !important;
+            margin-bottom: 0 !important;
         }
         body.wix-embed .worksheet-music,
         body.wix-embed .music-area {
@@ -101,7 +114,6 @@
             max-width: 100% !important;
             overflow: visible !important;
         }
-        /* Music SVG scales to container width (notes + staff stay proportional) */
         body.wix-embed .vex-stave-container > div > svg:not(.counting-layer):not(.playback-cursor-layer) {
             width: 100% !important;
             max-width: 100% !important;
@@ -109,7 +121,6 @@
             display: block !important;
             overflow: visible !important;
         }
-        /* Counting overlay must share the same box as the music SVG */
         body.wix-embed .vex-stave-container > svg.counting-layer,
         body.wix-embed .vex-stave-container > svg.playback-cursor-layer {
             width: 100% !important;
@@ -118,54 +129,27 @@
             right: 0 !important;
             overflow: visible !important;
         }
+        /* Title/name stay letter-page sizes (scale shrinks them with the page) */
         body.wix-embed .worksheet-title {
-            font-size: clamp(18px, 5.5vw, 28px) !important;
+            font-size: 24px !important;
         }
         body.wix-embed .worksheet-instructions {
-            font-size: clamp(11px, 3.2vw, 13px) !important;
-            padding: 0 4px;
+            font-size: 12px !important;
         }
         body.wix-embed .student-name {
-            font-size: 11px !important;
-            right: 0.15in !important;
+            font-size: 16px !important;
+            right: 0.55in !important;
         }
         body.wix-embed .student-name-line {
-            width: min(2in, 28vw) !important;
+            width: 2in !important;
         }
-        /* Narrow screens even outside embed (local test on phone) */
+        /* Local narrow test: same letter-page + scale behavior */
         @media screen and (max-width: 640px) {
             html, body {
-                overflow-x: auto !important;
+                overflow-x: hidden !important;
                 -webkit-overflow-scrolling: touch;
-                touch-action: pan-x pan-y;
             }
             .worksheet-set {
-                width: 100% !important;
-                max-width: 100% !important;
-            }
-            .worksheet-container {
-                min-height: 0 !important;
-                max-height: none !important;
-                height: auto !important;
-                overflow: visible !important;
-                padding: 0.18in 0.1in !important;
-            }
-            .music-area, .worksheet-music {
-                overflow: visible !important;
-                width: 100% !important;
-            }
-            .vex-stave-container {
-                overflow: visible !important;
-                width: 100% !important;
-            }
-            .vex-stave-container > div > svg:not(.counting-layer):not(.playback-cursor-layer) {
-                width: 100% !important;
-                max-width: 100% !important;
-                height: auto !important;
-                display: block !important;
-            }
-            .vex-stave-container > svg.counting-layer,
-            .vex-stave-container > svg.playback-cursor-layer {
                 width: 100% !important;
                 max-width: 100% !important;
             }
@@ -189,43 +173,62 @@
         }
         /* Local full app: also hide this bar (local uses #worksheetToolbar Play) */
         #embedAudioBar { display: none !important; }
-        /* Full-frame gate: must be clicked inside iframe to unlock sound (Wix Play → postMessage) */
+        /*
+         * Audio gate: MUST sit in the *visible* top of the iframe.
+         * Using inset:0 + center on a tall iframe buried the button off-screen on mobile.
+         * Height is one viewport so the card stays tappable without scrolling.
+         */
         #embedAudioGate {
             display: none;
             position: fixed;
-            inset: 0;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: auto;
+            width: 100%;
+            height: 100vh;
+            height: 100dvh;
+            max-height: 100%;
             z-index: 2147483646;
-            background: rgba(15, 23, 42, 0.72);
-            align-items: center;
+            background: rgba(15, 23, 42, 0.78);
+            align-items: flex-start;
             justify-content: center;
-            padding: 20px;
+            padding: 12px;
+            padding-top: max(12px, env(safe-area-inset-top, 0px));
             box-sizing: border-box;
+            overflow: auto;
+            -webkit-overflow-scrolling: touch;
         }
         #embedAudioGate.show { display: flex !important; }
         #embedAudioGate .gate-card {
             background: #fff;
-            border-radius: 16px;
-            padding: 22px 26px;
-            max-width: 320px;
+            border-radius: 14px;
+            padding: 14px 16px 16px;
+            width: min(300px, 100%);
+            max-width: 100%;
             text-align: center;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.35);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+            margin-top: 8px;
+            flex-shrink: 0;
         }
         #embedAudioGate button {
             background: #059669;
             color: #fff;
             border: none;
             border-radius: 12px;
-            padding: 14px 22px;
-            font-size: 16px;
+            padding: 14px 16px;
+            font-size: 15px;
             font-weight: 700;
             cursor: pointer;
             width: 100%;
+            min-height: 48px; /* easy mobile tap */
+            -webkit-tap-highlight-color: transparent;
         }
         #embedAudioGate p {
             color: #334155;
-            font-size: 14px;
-            margin: 0 0 14px;
-            line-height: 1.4;
+            font-size: 13px;
+            margin: 0 0 12px;
+            line-height: 1.35;
         }
         /* Non-premium print block is applied via #premiumPrintGuard style tag */
 
@@ -513,12 +516,23 @@
                 min-height: 0 !important;
             }
             
-            /* One letter page per worksheet page (a set may have page 1, 2, …) */
+            /* One letter page per worksheet page — never use mobile screen scale on print */
             .worksheet-set {
                 margin: 0 !important;
                 width: 100% !important;
                 max-width: 100% !important;
             }
+            .worksheet-page-fit {
+                width: 100% !important;
+                max-width: 100% !important;
+                height: auto !important;
+                min-height: 0 !important;
+                max-height: none !important;
+                overflow: visible !important;
+                margin: 0 !important;
+                transform: none !important;
+            }
+            .worksheet-page-fit .worksheet-container,
             .worksheet-container {
                 box-shadow: none !important;
                 border: none !important;
@@ -529,12 +543,14 @@
                 min-height: 0 !important;
                 max-height: none !important;
                 height: auto !important;
+                transform: none !important;
                 page-break-after: always !important;
                 break-after: page !important;
                 page-break-inside: avoid !important;
                 break-inside: avoid !important;
                 overflow: hidden !important;
             }
+            .worksheet-set:last-child .worksheet-page-fit:last-child .worksheet-container,
             .worksheet-set:last-child > .worksheet-container:last-child {
                 page-break-after: auto !important;
                 break-after: auto !important;
@@ -1073,45 +1089,139 @@ function applyWixEmbedChrome() {
     console.log('%c[RhythmGen] Wix embed mode active', 'color:#1e3a8a');
 }
 
-/** Best available content width for staff layout (iframe / mobile safe). */
+/** Letter page geometry (matches print / desktop engraving). */
+const LETTER_PAGE_W_PX = Math.round(8.5 * 96);   // 816
+const LETTER_PAGE_H_PX = Math.round(10.3 * 96);  // ~989
+/** Staff content width inside letter page padding (~0.45in each side). */
+const LETTER_STAFF_WIDTH = 680;
+
+/**
+ * Host width for *scaling* the letter page into the embed (not for engraving).
+ * Prefer the iframe viewport — letter-sized children can inflate element clientWidths.
+ */
 function measureWorksheetContentWidth(setOrEl) {
-    const candidates = [];
+    let vw = 360;
+    try {
+        vw = Math.floor(
+            (window.visualViewport && window.visualViewport.width)
+            || window.innerWidth
+            || (document.documentElement && document.documentElement.clientWidth)
+            || 360
+        );
+    } catch (e) {}
+
+    const extras = [];
     const push = (n) => {
         const v = Math.floor(Number(n) || 0);
-        if (v >= 80) candidates.push(v);
+        // Ignore widths inflated by unscaled letter pages (~816px)
+        if (v >= 80 && v < LETTER_PAGE_W_PX - 40) extras.push(v);
     };
     try {
-        if (setOrEl) {
-            push(setOrEl.clientWidth);
-            push(setOrEl.getBoundingClientRect && setOrEl.getBoundingClientRect().width);
-            const ma = setOrEl.querySelector && setOrEl.querySelector('.music-area');
-            if (ma) {
-                push(ma.clientWidth);
-                push(ma.getBoundingClientRect && ma.getBoundingClientRect().width);
-            }
-            const card = setOrEl.querySelector && setOrEl.querySelector('.worksheet-container');
-            if (card) push(card.clientWidth);
-            if (setOrEl.parentElement) push(setOrEl.parentElement.clientWidth);
+        // Walk up parents of the set / worksheets container (not self-width)
+        let el = (setOrEl && setOrEl.parentElement) || null;
+        for (let i = 0; i < 5 && el; i++) {
+            push(el.clientWidth);
+            el = el.parentElement;
         }
         const wc = document.getElementById('worksheetsContainer');
-        if (wc) push(wc.clientWidth);
+        if (wc && wc.parentElement) push(wc.parentElement.clientWidth);
         const pc = document.getElementById('previewContainer');
-        if (pc) push(pc.clientWidth);
-        push(document.documentElement && document.documentElement.clientWidth);
-        push(document.body && document.body.clientWidth);
-        push(window.innerWidth);
-        // Visual viewport is often more accurate inside mobile browser chrome
-        if (window.visualViewport && window.visualViewport.width) {
-            push(window.visualViewport.width);
-        }
+        if (pc && pc.parentElement) push(pc.parentElement.clientWidth);
+        // body/html can be reliable before children expand them
+        push(document.body && document.body.parentElement && document.body.parentElement.clientWidth);
     } catch (e) {}
-    if (!candidates.length) return 360;
-    // Prefer the smallest credible width so we never paint wider than the visible frame
-    // (wide ghost widths in 0-layout iframes cause clipped notes with no scroll).
-    candidates.sort((a, b) => a - b);
-    // Drop tiny junk (<120) already filtered; use median-ish lower half for stability
-    const mid = candidates[Math.min(candidates.length - 1, Math.floor(candidates.length * 0.35))];
-    return Math.max(200, Math.min(900, mid));
+
+    // Tightest credible host width (phone iframe ~320–400)
+    let host = vw;
+    if (extras.length) {
+        host = Math.min(vw, ...extras);
+    }
+    return Math.max(160, Math.min(900, host));
+}
+
+/**
+ * Scale each letter page so the full 8.5×11 page fits in the embed/host box.
+ * Engraving stays letter-size; only the on-screen transform changes.
+ * Print CSS / printWorksheets() strip the transform so output is normal.
+ */
+function fitWorksheetSetToHost(setEl) {
+    if (!setEl) return;
+    const shells = setEl.querySelectorAll
+        ? setEl.querySelectorAll('.worksheet-page-fit')
+        : [];
+    if (!shells.length) {
+        // Legacy: bare containers — wrap not present
+        return;
+    }
+    const hostW = measureWorksheetContentWidth(setEl);
+    // Visible iframe viewport height (not full scroll height of long content)
+    let hostH = 0;
+    try {
+        hostH = Math.min(
+            window.innerHeight || 0,
+            (window.visualViewport && window.visualViewport.height) || Infinity,
+            document.documentElement.clientHeight || Infinity
+        );
+    } catch (e) {
+        hostH = window.innerHeight || 0;
+    }
+    // If iframe is content-sized (very tall), prefer width-only fit so page is a small card
+    const iframeIsContentSized = hostH > LETTER_PAGE_H_PX * 0.95;
+
+    shells.forEach((shell) => {
+        const page = shell.querySelector('.worksheet-container');
+        if (!page) return;
+
+        // Natural letter size (print-identical)
+        page.style.width = LETTER_PAGE_W_PX + 'px';
+        page.style.maxWidth = LETTER_PAGE_W_PX + 'px';
+        page.style.minHeight = LETTER_PAGE_H_PX + 'px';
+        page.style.height = LETTER_PAGE_H_PX + 'px';
+        page.style.maxHeight = LETTER_PAGE_H_PX + 'px';
+        page.style.transformOrigin = 'top left';
+        page.style.boxSizing = 'border-box';
+
+        const pageW = LETTER_PAGE_W_PX;
+        const pageH = LETTER_PAGE_H_PX;
+        const pad = 2;
+        let scale = (hostW - pad) / pageW;
+        if (!iframeIsContentSized && hostH > 100) {
+            // Short fixed iframe: also fit height so the whole page is in the box
+            scale = Math.min(scale, (hostH - pad) / pageH);
+        }
+        // Never upscale past 1 (desktop embed wide enough)
+        scale = Math.max(0.12, Math.min(1, scale));
+
+        page.style.transform = `scale(${scale})`;
+        shell.style.width = '100%';
+        shell.style.maxWidth = '100%';
+        shell.style.height = Math.ceil(pageH * scale) + 'px';
+        shell.style.overflow = 'hidden';
+        shell.dataset.pageScale = String(scale);
+    });
+    console.log('[RhythmGen] page fit', {
+        hostW,
+        hostH,
+        scale: shells[0] && shells[0].dataset.pageScale
+    });
+}
+
+/** Remove screen-only letter-page scales (print / export). */
+function clearWorksheetScreenScales() {
+    document.querySelectorAll('.worksheet-page-fit').forEach((shell) => {
+        shell.style.height = 'auto';
+        shell.style.overflow = 'visible';
+    });
+    document.querySelectorAll('.worksheet-page-fit .worksheet-container, .worksheet-container').forEach((page) => {
+        if (page.style && page.style.transform) page.style.transform = 'none';
+    });
+}
+
+/** Restore scales after print dialog closes. */
+function restoreWorksheetScreenScales() {
+    document.querySelectorAll('.worksheet-set').forEach((set) => {
+        try { fitWorksheetSetToHost(set); } catch (e) {}
+    });
 }
 
 /** Block Ctrl+P / browser print when not premium (Wix embed only) */
@@ -6497,19 +6607,12 @@ function renderVexFlowMusic(setOrContainer, worksheetData) {
     const isCompound = ["6/8", "9/8", "12/8"].includes(timeSig);
     const wsLevel = worksheetData.level || parseInt((document.getElementById('dropdownLevel') || {}).value) || 1;
     
-    // Probe width — iframe/mobile often 0 on first paint; use multi-source measure
-    let containerW = measureWorksheetContentWidth(setEl);
-    // Horizontal inset: padding on .worksheet-container + music area
-    const isNarrow = containerW < 520;
-    const RIGHT_PRINT_SAFETY = isNarrow ? 8 : 36;
-    const sidePad = isNarrow ? 16 : 24;
-    // CRITICAL: never force 520px min on phones (~320–400px) — that clipped notes
-    // off-screen (overflow:hidden) with no horizontal scroll in the Wix iframe.
-    const avail = Math.max(180, Math.floor(containerW - sidePad - RIGHT_PRINT_SAFETY));
-    const HARD_LINE_WIDTH = isNarrow
-        ? Math.max(200, Math.min(720, avail))
-        : Math.max(520, Math.min(720, avail));
-    console.log('[RhythmGen] staff width', { containerW, HARD_LINE_WIDTH, isNarrow });
+    // Always engrave at letter-page staff width so mobile preview + print match desktop.
+    // On-screen fit is a CSS transform on the whole page (fitWorksheetSetToHost), not a re-layout.
+    const hostW = measureWorksheetContentWidth(setEl);
+    const RIGHT_PRINT_SAFETY = 36;
+    const HARD_LINE_WIDTH = Math.max(520, Math.min(720, LETTER_STAFF_WIDTH));
+    console.log('[RhythmGen] staff width (letter layout)', { hostW, HARD_LINE_WIDTH });
     
     const layout = planWorksheetLayout(rhythms, numMeasures, HARD_LINE_WIDTH, wsLevel);
     const pages = (layout.pages && layout.pages.length) ? layout.pages : [{ lines: layout.lines || [] }];
@@ -6618,9 +6721,25 @@ function renderVexFlowMusic(setOrContainer, worksheetData) {
     } catch (e) {
         console.warn('[RhythmGen] seek handlers failed', e);
     }
+
+    // Screen: shrink each full letter page into the embed/host box (print stays full size)
+    try {
+        // Double rAF so layout/widths settle before measuring host for scale
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                try { fitWorksheetSetToHost(setEl); } catch (e2) {}
+            });
+        });
+    } catch (e) {
+        try { fitWorksheetSetToHost(setEl); } catch (e3) {}
+    }
 }
 
 function buildWorksheetPageShell(worksheetData, pageIndex, pageCount) {
+    // Outer shell: CSS-scaled to fit embed; inner = true letter page for print
+    const shell = document.createElement('div');
+    shell.className = 'worksheet-page-fit';
+
     const card = document.createElement('div');
     card.className = 'worksheet-container';
     card.dataset.worksheetId = worksheetData.id;
@@ -6671,7 +6790,8 @@ function buildWorksheetPageShell(worksheetData, pageIndex, pageCount) {
     card.appendChild(header);
     card.appendChild(musicWrap);
     card.appendChild(footer);
-    return card;
+    shell.appendChild(card);
+    return shell;
 }
 
 function renderOneLineWithVexFlow(renderDiv, countingSvg, timeSig, lineRhythms, startMeasureIndex, measuresThisLine, isCompound, showClefAndTime = true, layoutOpts = {}) {
@@ -8074,7 +8194,8 @@ function createWorksheetCard(worksheetData) {
     // Seed page 1 so width can be measured; render rebuilds pages as needed
     set.appendChild(buildWorksheetPageShell(worksheetData, 0, 1));
     
-    // Mobile / iframe: first clientWidth is often 0 or wrong — re-render when layout settles
+    // Layout is always letter-width; only scale-to-fit depends on host size.
+    // Re-render a couple times for fonts/iframe settle; then only re-fit on resize.
     let lastW = 0;
     let settled = false;
     const tryRender = (attempt) => {
@@ -8083,26 +8204,30 @@ function createWorksheetCard(worksheetData) {
         } catch (e) {
             console.warn('[RhythmGen] render attempt failed', attempt, e);
         }
+        try { fitWorksheetSetToHost(set); } catch (e2) {}
         const w = measureWorksheetContentWidth(set);
-        // Re-render if width was unknown or changed a lot (Wix mobile iframe)
-        if (attempt < 5 && (w < 160 || (lastW > 0 && Math.abs(w - lastW) > 28))) {
+        if (attempt < 3 && w < 140) {
             lastW = w;
-            setTimeout(() => tryRender(attempt + 1), 70 + attempt * 70);
-        } else if (attempt < 3 && w >= 160) {
+            setTimeout(() => tryRender(attempt + 1), 90 + attempt * 80);
+        } else if (attempt < 2) {
             lastW = w;
             settled = true;
-            // Follow-up after fonts/layout (iOS WebKit often paints staves before note glyphs)
+            // Follow-up after fonts (iOS) then re-fit
             setTimeout(() => {
-                try { renderVexFlowMusic(set, worksheetData); } catch (e2) {}
-            }, 220);
+                try {
+                    renderVexFlowMusic(set, worksheetData);
+                    fitWorksheetSetToHost(set);
+                } catch (e3) {}
+            }, 240);
         } else {
             lastW = w;
             settled = true;
+            try { fitWorksheetSetToHost(set); } catch (e4) {}
         }
     };
     setTimeout(() => tryRender(0), 40);
 
-    // When the Wix HTML component resizes (orientation, accordion, late layout), re-fit once
+    // Resize: only re-scale (layout is letter-constant — no re-engrave needed)
     try {
         if (typeof ResizeObserver !== 'undefined') {
             let roTimer = null;
@@ -8111,18 +8236,21 @@ function createWorksheetCard(worksheetData) {
                 clearTimeout(roTimer);
                 roTimer = setTimeout(() => {
                     const w = measureWorksheetContentWidth(set);
-                    if (w >= 160 && Math.abs(w - lastW) > 36) {
+                    if (Math.abs(w - lastW) > 12) {
                         lastW = w;
-                        try { renderVexFlowMusic(set, worksheetData); } catch (e) {}
+                        try { fitWorksheetSetToHost(set); } catch (e) {}
                     }
-                }, 120);
+                }, 100);
             });
             ro.observe(set);
-            // Also watch the outer worksheets container if present
             const wc = document.getElementById('worksheetsContainer');
             if (wc) ro.observe(wc);
+            try { ro.observe(document.documentElement); } catch (e) {}
             set._rhythmResizeObserver = ro;
         }
+        window.addEventListener('orientationchange', () => {
+            setTimeout(() => { try { fitWorksheetSetToHost(set); } catch (e) {} }, 200);
+        });
     } catch (e) {}
     
     return set;
@@ -8914,11 +9042,27 @@ function showEmbedAudioGateAndPlay(mode) {
         return;
     }
     console.log('%c[RhythmGen] Showing audio gate — click the green button in the worksheet panel', 'color:#059669;font-weight:bold');
+
+    // Bring iframe scroll to top so the fixed top-viewport gate is on-screen
+    try {
+        window.scrollTo(0, 0);
+        document.documentElement.scrollTop = 0;
+        document.body.scrollTop = 0;
+    } catch (e) {}
+
     gate.classList.add('show');
     gate.setAttribute('aria-hidden', 'false');
     btn.textContent = mode === 'testTempo'
         ? '▶ Enable sound & Test tempo'
         : '▶ Enable sound & Play';
+
+    // Focus button for accessibility / some mobile browsers
+    try {
+        setTimeout(() => {
+            const b = document.getElementById('embedAudioGateBtn');
+            if (b) b.focus({ preventScroll: true });
+        }, 50);
+    } catch (e) {}
 
     // Replace button to drop any previous listeners
     const fresh = btn.cloneNode(true);
@@ -9042,11 +9186,25 @@ function printWorksheets() {
         alert("Please generate worksheets first.");
         return;
     }
-    
-    // Give browser a moment to prepare
+
+    // Screen uses CSS scale to fit the embed; print must be full letter size
+    try { clearWorksheetScreenScales(); } catch (e) {}
+
+    const restore = () => {
+        try { restoreWorksheetScreenScales(); } catch (e2) {}
+        window.removeEventListener('afterprint', restore);
+    };
+    try { window.addEventListener('afterprint', restore); } catch (e3) {}
+
+    // Give browser a moment to drop transforms before print layout
     setTimeout(() => {
-        window.print();
-    }, 60);
+        try {
+            window.print();
+        } finally {
+            // Fallback restore (some mobile browsers never fire afterprint)
+            setTimeout(restore, 1500);
+        }
+    }, 80);
 }
 
 
