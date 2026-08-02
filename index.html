@@ -81,21 +81,24 @@
             overflow: visible !important;
         }
         /*
-         * Letter page stays true 8.5×11 for engraving + print.
+         * SCREEN ONLY: letter page stays true 8.5×11 for engraving.
          * JS applies transform: scale() so the whole page fits in the embed box on mobile.
+         * Must NOT apply in print — 8.5in + @page margins overflows and clips the right side.
          */
-        body.wix-embed .worksheet-page-fit .worksheet-container,
-        .worksheet-page-fit .worksheet-container {
-            width: 8.5in !important;
-            max-width: 8.5in !important;
-            min-height: 10.3in !important;
-            max-height: 10.3in !important;
-            height: 10.3in !important;
-            box-sizing: border-box !important;
-            transform-origin: top left;
-            overflow: hidden !important;
-            padding: 0.15in 0.45in 0.12in 0.45in !important;
-            margin-bottom: 0 !important;
+        @media screen {
+            body.wix-embed .worksheet-page-fit .worksheet-container,
+            .worksheet-page-fit .worksheet-container {
+                width: 8.5in !important;
+                max-width: 8.5in !important;
+                min-height: 10.3in !important;
+                max-height: 10.3in !important;
+                height: 10.3in !important;
+                box-sizing: border-box !important;
+                transform-origin: top left;
+                overflow: hidden !important;
+                padding: 0.15in 0.45in 0.12in 0.45in !important;
+                margin-bottom: 0 !important;
+            }
         }
         body.wix-embed .worksheet-music,
         body.wix-embed .music-area {
@@ -109,7 +112,8 @@
             overflow: visible !important;
             position: relative;
         }
-        body.wix-embed .vex-stave-container > div {
+        /* Only the VexFlow mount div — NOT .playback-cursor (was forced full-width red bar) */
+        body.wix-embed .vex-stave-container > div:not(.playback-cursor) {
             width: 100% !important;
             max-width: 100% !important;
             overflow: visible !important;
@@ -422,24 +426,35 @@
         }
         
         .playback-cursor {
-            position: absolute;
-            width: 3px;
+            position: absolute !important;
+            left: 0;
+            width: 3px !important;
+            max-width: 3px !important;
+            min-width: 3px !important;
             background: #e11d48; /* rose-600 */
             border-radius: 2px;
             box-shadow: 0 0 6px rgba(225, 29, 72, 0.6);
-            pointer-events: none;
-            z-index: 10;
+            pointer-events: none !important;
+            z-index: 20;
             transition: left 50ms linear;
             transform-origin: center center;
+            /* Never stretch to full staff (embed rules used to set width:100% on child divs) */
+            box-sizing: border-box !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
         }
         /* Multi-beat sustain: slightly thicker so beat pulses read clearly */
         .playback-cursor.cursor-sustain {
-            width: 4px;
+            width: 4px !important;
+            max-width: 4px !important;
+            min-width: 4px !important;
         }
         /* Idle cursor after clicking a note to start from there */
         .playback-cursor.seek-idle {
             opacity: 0.7;
-            width: 3px;
+            width: 3px !important;
+            max-width: 3px !important;
             box-shadow: 0 0 10px rgba(225, 29, 72, 0.75);
         }
         .vex-stave-container.seekable-stave {
@@ -516,7 +531,7 @@
                 min-height: 0 !important;
             }
             
-            /* One letter page per worksheet page — never use mobile screen scale on print */
+            /* Full printable area — no fixed 8.5in (that + @page margin clipped the right side) */
             .worksheet-set {
                 margin: 0 !important;
                 width: 100% !important;
@@ -530,16 +545,21 @@
                 max-height: none !important;
                 overflow: visible !important;
                 margin: 0 !important;
+                padding: 0 !important;
                 transform: none !important;
             }
+            /* Higher specificity than screen embed letter rules */
+            body.wix-embed .worksheet-page-fit .worksheet-container,
+            body.wix-embed .worksheet-container,
             .worksheet-page-fit .worksheet-container,
             .worksheet-container {
                 box-shadow: none !important;
                 border: none !important;
                 border-radius: 0 !important;
-                margin: 0 !important;
+                margin: 0 auto !important;
                 width: 100% !important;
                 max-width: 100% !important;
+                min-width: 0 !important;
                 min-height: 0 !important;
                 max-height: none !important;
                 height: auto !important;
@@ -548,7 +568,11 @@
                 break-after: page !important;
                 page-break-inside: avoid !important;
                 break-inside: avoid !important;
-                overflow: hidden !important;
+                overflow: visible !important;
+                /* Modest padding — @page already supplies outer margin */
+                padding: 0.12in 0.2in 0.1in 0.2in !important;
+                box-sizing: border-box !important;
+                position: relative !important;
             }
             .worksheet-set:last-child .worksheet-page-fit:last-child .worksheet-container,
             .worksheet-set:last-child > .worksheet-container:last-child {
@@ -556,12 +580,21 @@
                 break-after: auto !important;
             }
             
-            .worksheet-music {
-                padding: 0.05in 0.35in 0.04in 0.2in !important; /* keep right notes out of print margin */
+            .worksheet-music,
+            body.wix-embed .worksheet-music {
+                padding: 0.08in 0 0.05in 0 !important;
                 overflow: visible !important;
+                width: 100% !important;
+                max-width: 100% !important;
+            }
+            .music-area {
+                width: 100% !important;
+                max-width: 100% !important;
             }
             
-            .music-area svg {
+            .music-area svg,
+            .vex-stave-container svg,
+            .vex-stave-container > div > svg {
                 max-width: 100% !important;
                 width: 100% !important;
                 height: auto !important;
@@ -571,21 +604,21 @@
                 margin-bottom: 14px !important;
                 min-height: 0 !important;
                 page-break-inside: avoid !important;
-            }
-            
-            .worksheet-container {
-                padding: 0.35in 0.45in 0.25in 0.45in !important;
+                width: 100% !important;
+                max-width: 100% !important;
             }
             
             .worksheet-header {
                 padding: 0 !important;
-                margin-bottom: 0.28in !important;
+                margin-bottom: 0.22in !important;
                 border-bottom: none !important;
+                width: 100% !important;
             }
             
             .worksheet-title {
-                margin-top: 0.35in !important;
+                margin-top: 0.28in !important;
                 font-size: 24px !important;
+                text-align: center !important;
             }
             
             .worksheet-instructions {
@@ -593,33 +626,37 @@
                 margin-top: 0.1in !important;
                 margin-bottom: 0.1in !important;
                 color: #666 !important;
+                text-align: center !important;
             }
             
             .student-name {
-                right: 0.5in !important;
-                top: 0.35in !important;
+                right: 0.15in !important;
+                top: 0.2in !important;
+                left: auto !important;
             }
             
             .student-name span {
-                font-size: 16px !important;
+                font-size: 14px !important;
                 font-weight: bold !important;
             }
-            
-            .worksheet-music {
-                padding: 0.1in 0 0.06in 0 !important;
+            .student-name-line {
+                width: 1.75in !important;
             }
             
             .worksheet-footer {
-                margin: 0 !important;
+                margin: 0 auto !important;
                 padding: 0.04in 0 !important;
                 page-break-before: avoid !important;
                 font-size: 10px !important;
                 color: #666 !important;
+                text-align: center !important;
+                width: 100% !important;
             }
             
+            /* Thin browser margins so full letter content fits without right clip */
             @page {
                 size: letter portrait;
-                margin: 0.35in 0.4in 0.35in 0.4in;
+                margin: 0.4in 0.45in 0.4in 0.45in;
             }
             
             #worksheetsContainer {
@@ -1210,10 +1247,27 @@ function fitWorksheetSetToHost(setEl) {
 function clearWorksheetScreenScales() {
     document.querySelectorAll('.worksheet-page-fit').forEach((shell) => {
         shell.style.height = 'auto';
+        shell.style.maxHeight = 'none';
         shell.style.overflow = 'visible';
+        shell.style.width = '100%';
+        shell.style.transform = 'none';
     });
     document.querySelectorAll('.worksheet-page-fit .worksheet-container, .worksheet-container').forEach((page) => {
-        if (page.style && page.style.transform) page.style.transform = 'none';
+        // Clear ALL inline geometry from fitWorksheetSetToHost so print CSS can own layout
+        page.style.transform = 'none';
+        page.style.width = '';
+        page.style.maxWidth = '';
+        page.style.minWidth = '';
+        page.style.height = '';
+        page.style.minHeight = '';
+        page.style.maxHeight = '';
+        page.style.margin = '';
+        page.style.left = '';
+        page.style.top = '';
+    });
+    // Hide playback cursors in print (also no-print class, but belt-and-suspenders)
+    document.querySelectorAll('.playback-cursor').forEach((el) => {
+        el.style.display = 'none';
     });
 }
 
@@ -8428,11 +8482,22 @@ function showIdleSeekCursor(seek) {
     lw.style.position = 'relative';
     const c = document.createElement('div');
     c.className = 'playback-cursor seek-idle';
-    c.style.height = Math.max(56, (lw.offsetHeight || 72) - 12) + 'px';
-    c.style.top = '6px';
-    c.style.left = `${Math.max(0, (seek.x || 0) - 1)}px`;
-    c.style.display = 'block';
-    c.style.opacity = '0.7';
+    const rowH = lw.offsetHeight || 72;
+    c.style.cssText = [
+        'position:absolute',
+        'top:6px',
+        `left:${Math.max(0, (seek.x || 0) - 1)}px`,
+        'width:3px',
+        'max-width:3px',
+        'min-width:3px',
+        `height:${Math.max(40, Math.min(90, rowH - 12))}px`,
+        'display:block',
+        'opacity:0.7',
+        'pointer-events:none',
+        'z-index:20',
+        'background:#e11d48',
+        'border-radius:2px'
+    ].join(';');
     lw.appendChild(c);
 }
 
@@ -8754,7 +8819,7 @@ async function playWorksheet(worksheetId, buttonElement) {
             plan = applySeekToPlan(plan, playbackSeek);
         }
 
-        // Create one cursor per stave line
+        // Create one cursor per stave line (thin vertical bar — never full-width)
         clearIdleSeekCursors();
         const cursorsByLine = new Map();
         if (worksheetRoot) {
@@ -8762,10 +8827,26 @@ async function playWorksheet(worksheetId, buttonElement) {
                 lw.style.position = 'relative';
                 const c = document.createElement('div');
                 c.className = 'playback-cursor';
-                c.style.height = Math.max(56, (lw.offsetHeight || 72) - 12) + 'px';
-                c.style.opacity = '0';
-                c.style.display = 'none';
-                c.style.top = '6px';
+                // Layout height from unscaled row; keep narrow width in inline styles too
+                const rowH = lw.offsetHeight || 72;
+                c.style.cssText = [
+                    'position:absolute',
+                    'top:6px',
+                    'left:0',
+                    'width:3px',
+                    'max-width:3px',
+                    'min-width:3px',
+                    `height:${Math.max(40, Math.min(90, rowH - 12))}px`,
+                    'opacity:0',
+                    'display:none',
+                    'pointer-events:none',
+                    'z-index:20',
+                    'background:#e11d48',
+                    'border-radius:2px',
+                    'box-sizing:border-box',
+                    'margin:0',
+                    'padding:0'
+                ].join(';');
                 lw.appendChild(c);
                 cursorsByLine.set(lw, c);
             });
@@ -8802,65 +8883,46 @@ async function playWorksheet(worksheetId, buttonElement) {
             }, plan.musicStart);
         }
 
+        // Re-assert audio context right before building instruments (mobile Safari)
+        await ensureAudioUnlocked();
+        if (!isAudioRunning()) {
+            console.warn('[RhythmGen] AudioContext still not running — sound may be silent');
+        }
+
+        // Simple, reliable chain (reverb was flaky/silent on some mobile WebViews)
         const click = new Tone.MembraneSynth({
             octaves: 0.45,
             pitchDecay: 0.018,
             envelope: { attack: 0.001, decay: 0.18, sustain: 0.01, release: 0.15 }
         }).toDestination();
-        click.volume.value = -4;
+        click.volume.value = -2;
 
-        // Soft, pleasant rhythm tone (sine + warm lowpass + light room) — not a hard beep
-        const rhythmFilter = new Tone.Filter({
-            type: 'lowpass',
-            frequency: 1600,
-            rolloff: -12,
-            Q: 0.5
-        });
-        const rhythmReverb = new Tone.Reverb({
-            decay: 1.35,
-            preDelay: 0.015,
-            wet: 0.2
-        });
-        let reverbOk = false;
-        try {
-            if (typeof rhythmReverb.generate === 'function') {
-                await rhythmReverb.generate();
-            } else if (rhythmReverb.ready) {
-                await rhythmReverb.ready;
-            }
-            reverbOk = true;
-        } catch (e) {
-            reverbOk = false;
-        }
-        if (reverbOk) {
-            rhythmFilter.connect(rhythmReverb);
-            rhythmReverb.toDestination();
-        } else {
-            rhythmFilter.toDestination();
-        }
-
-        // PolySynth so successive notes can overlap with a soft release (less clicky)
         const rhythmSound = new Tone.PolySynth(Tone.Synth, {
-            oscillator: { type: 'sine' },
+            oscillator: { type: 'triangle' },
             envelope: {
-                attack: 0.022,
-                decay: 0.14,
-                sustain: 0.58,
-                release: 0.32
+                attack: 0.012,
+                decay: 0.12,
+                sustain: 0.45,
+                release: 0.22
             }
-        });
+        }).toDestination();
         try { rhythmSound.maxPolyphony = 6; } catch (e) {}
-        rhythmSound.connect(rhythmFilter);
-        rhythmSound.volume.value = -7;
+        rhythmSound.volume.value = -4;
 
         const restSound = new Tone.NoiseSynth({
             noise: { type: 'pink' },
             envelope: { attack: 0.002, decay: 0.06, sustain: 0, release: 0.04 }
         }).toDestination();
-        restSound.volume.value = -28;
+        restSound.volume.value = -22;
 
-        activePlayers.push(click, rhythmSound, restSound, rhythmFilter);
-        if (reverbOk) activePlayers.push(rhythmReverb);
+        activePlayers.push(click, rhythmSound, restSound);
+
+        // Audible "arm" click so the user knows sound is live (especially mobile)
+        try {
+            click.triggerAttackRelease('C3', '32n', undefined, 0.5);
+        } catch (e) {
+            console.warn('[RhythmGen] arm click failed', e);
+        }
 
         // --- Countdown visual (always 4, 3, 2, 1) ---
         showCountdownOverlay(hostForOverlay, 'Ready', true);
@@ -8924,6 +8986,11 @@ async function playWorksheet(worksheetId, buttonElement) {
                     const c = move.cursorEl;
                     if (!c) return;
 
+                    // Always keep a thin vertical bar (never stretch width)
+                    c.style.width = '3px';
+                    c.style.maxWidth = '3px';
+                    c.style.minWidth = '3px';
+
                     if (!move.isSustainPulse) {
                         // New attack: switch line if needed, land on this x
                         cursorsByLine.forEach((other) => {
@@ -8937,23 +9004,28 @@ async function playWorksheet(worksheetId, buttonElement) {
                         c.style.opacity = '0.95';
                         c.classList.remove('cursor-sustain');
                         c.style.transition = 'none';
-                        c.style.transform = 'scaleY(1.18)';
-                        c.style.boxShadow = '0 0 14px #e11d48';
+                        // Only scaleY for pulse — scaleX was nearly invisible at 3px but
+                        // combined badly with parent page-scale on mobile WebKit
+                        c.style.transform = 'scaleY(1.15)';
+                        c.style.boxShadow = '0 0 10px #e11d48';
                         c.style.background = '#e11d48';
                     } else {
-                        // Sustained multi-beat value: same x, softer beat pulse with metronome
+                        // Sustained multi-beat value: same x, soft beat pulse with metronome
                         c.style.display = 'block';
                         c.style.opacity = '0.95';
                         c.classList.add('cursor-sustain');
+                        c.style.width = '4px';
+                        c.style.maxWidth = '4px';
+                        c.style.minWidth = '4px';
                         c.style.transition = 'none';
-                        c.style.transform = 'scaleY(1.28) scaleX(1.6)';
-                        c.style.boxShadow = '0 0 16px #fb7185';
+                        c.style.transform = 'scaleY(1.22)';
+                        c.style.boxShadow = '0 0 12px #fb7185';
                         c.style.background = '#f43f5e';
                     }
                     requestAnimationFrame(() => {
                         if (c && isPlaying) {
                             c.style.transition = 'transform 140ms ease-out, box-shadow 220ms ease-out, background 220ms ease-out, left 45ms linear';
-                            c.style.transform = 'scaleY(1) scaleX(1)';
+                            c.style.transform = 'scaleY(1)';
                             c.style.boxShadow = move.isSustainPulse
                                 ? '0 0 8px rgba(244, 63, 94, 0.7)'
                                 : '0 0 6px rgba(225, 29, 72, 0.65)';
@@ -9003,10 +9075,25 @@ async function ensureAudioUnlocked() {
     }
     try {
         const raw = Tone.getContext && Tone.getContext().rawContext;
-        if (raw && raw.state === 'suspended' && typeof raw.resume === 'function') {
+        if (raw && raw.state !== 'running' && typeof raw.resume === 'function') {
             await raw.resume();
         }
     } catch (e3) {}
+    // iOS sometimes needs a silent buffer to fully unlock after gate click
+    try {
+        const ctx = (Tone.getContext && Tone.getContext().rawContext)
+            || (Tone.context && Tone.context.rawContext)
+            || Tone.context;
+        if (ctx && typeof ctx.createBufferSource === 'function') {
+            const buf = ctx.createBuffer(1, 1, ctx.sampleRate || 44100);
+            const src = ctx.createBufferSource();
+            src.buffer = buf;
+            src.connect(ctx.destination);
+            src.start(0);
+            try { src.stop(0); } catch (e4) {}
+            try { src.disconnect(); } catch (e5) {}
+        }
+    } catch (e6) {}
     const state = (Tone.context && Tone.context.state) ||
         (Tone.getContext && Tone.getContext().state) || '';
     // Do NOT set audioUnlockedByUserGesture here — only a real in-frame Play gate click may set it
@@ -9135,11 +9222,14 @@ async function playAllWorksheets(opts) {
         return;
     }
 
-    // Wix page button → postMessage: ALWAYS show in-frame gate until user has unlocked via gate click.
-    // Parent-page clicks can never start AudioContext in this cross-origin iframe.
-    if (fromPostMessage && isWixEmbedMode() && !audioUnlockedByUserGesture) {
-        showEmbedAudioGateAndPlay('play');
-        return;
+    // Wix page button → postMessage: need a real in-frame gesture if never unlocked
+    // OR if AudioContext suspended again (common on iOS after idle / background).
+    // Parent-page clicks can never unlock AudioContext in this cross-origin iframe.
+    if (fromPostMessage && isWixEmbedMode()) {
+        if (!audioUnlockedByUserGesture || !isAudioRunning()) {
+            showEmbedAudioGateAndPlay('play');
+            return;
+        }
     }
 
     // Local full UI, or embed after a successful gate click
