@@ -64,11 +64,9 @@
             margin: 0 auto !important;
             overflow: visible !important;
             -webkit-overflow-scrolling: touch;
-            display: flex !important;
-            flex-direction: column !important;
-            align-items: center !important;
         }
-        /* Outer shell: holds one letter page scaled to fit the embed width */
+        /* Outer shell: clips scaled letter page; flex centers the unscaled layout box
+           so scale(origin: top center) keeps the *visual* page centered in the embed */
         .worksheet-page-fit {
             width: 100%;
             max-width: 100%;
@@ -76,14 +74,23 @@
             overflow: hidden;
             position: relative;
             box-sizing: border-box;
-            /* Host for scaled letter page — JS centers via translate + scale */
-            display: block;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
         }
         body.wix-embed .worksheet-set {
             width: 100% !important;
             max-width: 100% !important;
             margin: 0 auto !important;
             overflow: visible !important;
+        }
+        /* Measure numbers: never bold (bold at 9px fills the glyph counters) */
+        .measure-number,
+        .answer-counting-layer text.measure-number {
+            font-weight: 400 !important;
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif !important;
+            font-size: 10px !important;
+            fill: #64748b !important;
         }
         /*
          * SCREEN ONLY: letter page stays true 8.5×11 for engraving.
@@ -99,10 +106,11 @@
                 max-height: 10.3in !important;
                 height: 10.3in !important;
                 box-sizing: border-box !important;
-                transform-origin: top left;
+                transform-origin: top center;
                 overflow: hidden !important;
                 padding: 0.15in 0.45in 0.12in 0.45in !important;
-                margin: 0 auto !important;
+                margin: 0 !important;
+                flex-shrink: 0;
             }
         }
         body.wix-embed .worksheet-music,
@@ -1220,41 +1228,48 @@ function fitWorksheetSetToHost(setEl) {
         page.style.minHeight = LETTER_PAGE_H_PX + 'px';
         page.style.height = LETTER_PAGE_H_PX + 'px';
         page.style.maxHeight = LETTER_PAGE_H_PX + 'px';
-        page.style.transformOrigin = 'top left';
+        // Scale from top *center* while shell flex-centers the layout box → visual is centered
+        page.style.transformOrigin = 'top center';
         page.style.boxSizing = 'border-box';
         page.style.margin = '0';
+        page.style.position = 'relative';
+        page.style.left = 'auto';
+        page.style.right = 'auto';
 
         const pageW = LETTER_PAGE_W_PX;
         const pageH = LETTER_PAGE_H_PX;
-        const pad = 2;
-        let scale = (hostW - pad) / pageW;
+        const pad = 4;
+        // Prefer the shell's real width (true embed content width) over viewport guesses
+        let shellW = hostW;
+        try {
+            const sw = shell.clientWidth || shell.getBoundingClientRect().width;
+            if (sw >= 120) shellW = Math.min(hostW, Math.floor(sw));
+        } catch (e) {}
+
+        let scale = (shellW - pad) / pageW;
         if (!iframeIsContentSized && hostH > 100) {
-            // Short fixed iframe: also fit height so the whole page is in the box
             scale = Math.min(scale, (hostH - pad) / pageH);
         }
-        // Never upscale past 1 (desktop embed wide enough)
         scale = Math.max(0.12, Math.min(1, scale));
 
-        // Center in embed: scale first, then translate in screen px
-        // CSS applies rightmost transform first → scale then translateX
-        const scaledW = pageW * scale;
-        const offsetX = Math.max(0, (hostW - scaledW) / 2);
-        page.style.transform = `translateX(${offsetX}px) scale(${scale})`;
+        // Only scale — no translateX (that was overshooting to the right)
+        page.style.transform = `scale(${scale})`;
 
         shell.style.width = '100%';
         shell.style.maxWidth = '100%';
         shell.style.height = Math.ceil(pageH * scale) + 'px';
         shell.style.overflow = 'hidden';
+        shell.style.display = 'flex';
+        shell.style.justifyContent = 'center';
+        shell.style.alignItems = 'flex-start';
         shell.style.marginLeft = 'auto';
         shell.style.marginRight = 'auto';
         shell.dataset.pageScale = String(scale);
-        shell.dataset.pageOffsetX = String(offsetX);
     });
     console.log('[RhythmGen] page fit', {
         hostW,
         hostH,
-        scale: shells[0] && shells[0].dataset.pageScale,
-        offsetX: shells[0] && shells[0].dataset.pageOffsetX
+        scale: shells[0] && shells[0].dataset.pageScale
     });
 }
 
@@ -8205,11 +8220,15 @@ function addCountingLinesWithRealPositions(targetSvg, staves, measureNoteData, s
             numText.setAttribute('y', String(measureNumY));
             numText.setAttribute('text-anchor', 'start');
             numText.setAttribute('dominant-baseline', 'auto');
-            numText.setAttribute('font-family', 'Arial, Helvetica, sans-serif');
-            numText.setAttribute('font-size', '9');
-            numText.setAttribute('font-weight', 'normal');
+            // Light regular weight — bold at this size fills the counters (hard to read)
+            numText.setAttribute('font-family', '"Helvetica Neue", Helvetica, Arial, sans-serif');
+            numText.setAttribute('font-size', '10');
+            numText.setAttribute('font-weight', '400');
             numText.setAttribute('fill', '#64748b');
+            numText.setAttribute('stroke', 'none');
             numText.setAttribute('class', 'measure-number');
+            numText.style.fontWeight = '400';
+            numText.style.fontFamily = '"Helvetica Neue", Helvetica, Arial, sans-serif';
             numText.textContent = String(mNum);
             layer.appendChild(numText);
         } catch (e) {}
