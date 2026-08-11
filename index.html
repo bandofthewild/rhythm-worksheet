@@ -7982,8 +7982,24 @@ function renderOneLineWithVexFlow(renderDiv, countingSvg, timeSig, lineRhythms, 
         console.warn('[RhythmGen] fluid SVG fit failed', e);
     }
     
-    // Draw counting lines + measure numbers using the real rendered positions
-    addCountingLinesWithRealPositions(countingSvg, staves, measureNoteData, staveY, staveH, answerGapPx, startMeasureIndex);
+    // Draw answer lines INTO the music SVG (same viewBox / scale as noteheads).
+    // A separate overlay was causing progressive left drift along each system.
+    const musicSvgEl = renderDiv.querySelector('svg');
+    addCountingLinesWithRealPositions(
+        musicSvgEl || countingSvg,
+        staves,
+        measureNoteData,
+        staveY,
+        staveH,
+        answerGapPx,
+        startMeasureIndex,
+        { lineHeight: lineH, svgWidth: svgW }
+    );
+    // Keep overlay empty but sized for hit-testing structure; seek uses line.answer-line in music SVG
+    if (countingSvg && musicSvgEl) {
+        countingSvg.innerHTML = '';
+        countingSvg.style.pointerEvents = 'none';
+    }
 }
 
 /**
@@ -8059,22 +8075,35 @@ function getRenderedNoteCenterX(note, stave) {
     return null;
 }
 
-function addCountingLinesWithRealPositions(countingSvg, staves, measureNoteData, staveY, staveHeight, answerGapPx, startMeasureIndex) {
-    countingSvg.innerHTML = '';
+/**
+ * Draw measure numbers + answer dashes into targetSvg (prefer the VexFlow music SVG
+ * so coordinates share one viewBox/scale with noteheads — no progressive X drift).
+ */
+function addCountingLinesWithRealPositions(targetSvg, staves, measureNoteData, staveY, staveHeight, answerGapPx, startMeasureIndex, layoutMeta) {
+    if (!targetSvg) return;
     const ns = 'http://www.w3.org/2000/svg';
-    
-    const isDrawMode = false; // draw-in mode removed
-    // Modest writable gap below the bottom staff line (~0.22")
+    const lineH = (layoutMeta && layoutMeta.lineHeight) || 120;
+    const svgW = (layoutMeta && layoutMeta.svgWidth) || 0;
+
+    // Remove prior answer layer if re-rendering into the same music SVG
+    try {
+        targetSvg.querySelectorAll('g.answer-counting-layer').forEach((n) => n.remove());
+    } catch (e) {}
+
+    const layer = document.createElementNS(ns, 'g');
+    layer.setAttribute('class', 'answer-counting-layer');
+    layer.setAttribute('pointer-events', 'none');
+
+    const isDrawMode = false;
     const gap = (answerGapPx != null && answerGapPx > 0) ? answerGapPx : Math.round(0.22 * 96);
     const measureStart = (startMeasureIndex != null && !isNaN(startMeasureIndex)) ? startMeasureIndex : 0;
-    
-    // One answer line per rendered note/rest head (realX includes each triplet notehead)
+
     const buildAnswerSlots = (data, stave) => {
         const events = data.events || [];
         const realXs = data.realX || [];
         const syllables = data.syllables || [];
         const slots = [];
-        
+
         if (realXs.length > 0) {
             realXs.forEach((x) => {
                 if (x == null || isNaN(x)) return;
@@ -8092,8 +8121,7 @@ function addCountingLinesWithRealPositions(countingSvg, staves, measureNoteData,
             }
             return slots;
         }
-        
-        // Fallback: blank staff (Draw mode) — expand triplets to 3 slots
+
         if (events.length === 0) return slots;
         const sx = stave.getX ? stave.getX() : 22;
         const w = stave.getWidth ? stave.getWidth() : 140;
@@ -8115,45 +8143,40 @@ function addCountingLinesWithRealPositions(countingSvg, staves, measureNoteData,
         });
         return slots;
     };
-    
-    // Determine SVG height from parent row so answer lines stay inside the visible band
-    let svgH = 120;
-    try {
-        const hAttr = countingSvg.style.height || countingSvg.getAttribute('height');
-        if (hAttr) svgH = parseFloat(hAttr) || svgH;
-    } catch (e) {}
-    
+
+    // Vertical budget = full staff system height (same as music SVG viewBox)
+    const svgH = lineH || 120;
+
     let drawn = 0;
     staves.forEach((stave, mIdx) => {
         const data = measureNoteData[mIdx] || { events: [], realX: [], staveNotes: [] };
-        
-        // Staff line positions
+
         let staffBottom = staveY + staveHeight;
         let staffTop = staveY + 8;
         try {
             if (typeof stave.getBottomY === 'function') staffBottom = stave.getBottomY();
             else if (typeof stave.getYForLine === 'function') staffBottom = stave.getYForLine(4);
-            // Single visible line is middle (index 2); use top of stave geometry for numbers
             if (typeof stave.getYForLine === 'function') {
                 staffTop = stave.getYForLine(0);
             } else if (typeof stave.getTopLineTopY === 'function') {
                 staffTop = stave.getTopLineTopY();
             }
         } catch (e) {}
-        
-        // Answer lines in the writable gap below the staff
-        let countY = staffBottom + gap;
-        if (countY > svgH - 8) countY = Math.max(staffBottom + 12, svgH - 10);
-        
-        // Measure number: upper-left of measure — just after left barline, before notes,
-        // slightly above the middle (notehead) line
+
+        // Answer band just below the single visible staff line (middle line)
+        let midLineY = staffBottom;
+        try {
+            if (typeof stave.getYForLine === 'function') midLineY = stave.getYForLine(2);
+        } catch (e) {}
+        let countY = midLineY + Math.max(18, Math.min(gap, svgH - midLineY - 8));
+        if (countY > svgH - 6) countY = Math.max(midLineY + 14, svgH - 8);
+
         try {
             const mNum = measureStart + mIdx + 1;
             let numX = stave.getX() + 5;
             try {
                 if (typeof stave.getNoteStartX === 'function') {
                     const nsx = stave.getNoteStartX();
-                    // Early in the left pad (after barline, before first note)
                     numX = Math.max(stave.getX() + 4, Math.min(nsx - 3, stave.getX() + 10));
                 }
             } catch (e2) {}
@@ -8173,18 +8196,17 @@ function addCountingLinesWithRealPositions(countingSvg, staves, measureNoteData,
             numText.setAttribute('fill', '#64748b');
             numText.setAttribute('class', 'measure-number');
             numText.textContent = String(mNum);
-            countingSvg.appendChild(numText);
+            layer.appendChild(numText);
         } catch (e) {}
-        
+
         const slots = buildAnswerSlots(data, stave);
-        // Half-length of the short answer dash (centered on headX)
         const lineLen = 5.5;
         const measureIndex = measureStart + mIdx;
-        
+
         slots.forEach((slot, slotInMeasure) => {
             const headX = slot.x;
             if (headX == null || isNaN(headX)) return;
-            
+
             const line = document.createElementNS(ns, 'line');
             line.setAttribute('x1', String(headX - lineLen));
             line.setAttribute('y1', String(countY));
@@ -8194,19 +8216,23 @@ function addCountingLinesWithRealPositions(countingSvg, staves, measureNoteData,
             line.setAttribute('stroke-width', '1.25');
             line.setAttribute('stroke-linecap', 'round');
             line.setAttribute('class', 'answer-line');
-            // Seek metadata: click maps to this note/rest
             line.setAttribute('data-measure', String(measureIndex));
             line.setAttribute('data-slot', String(slotInMeasure));
-            countingSvg.appendChild(line);
+            layer.appendChild(line);
             drawn++;
         });
     });
-    
-    // Keep height already set by fluid fit (do not clobber viewBox alignment)
-    if (!countingSvg.style.height && svgH) {
-        countingSvg.setAttribute('height', String(svgH));
-        countingSvg.style.height = svgH + 'px';
+
+    targetSvg.appendChild(layer);
+
+    // Ensure viewBox is tall enough if we only passed music svg without prior viewBox
+    if (svgW > 0 && lineH > 0) {
+        try {
+            const vb = targetSvg.getAttribute('viewBox');
+            if (!vb) targetSvg.setAttribute('viewBox', `0 0 ${svgW} ${lineH}`);
+        } catch (e) {}
     }
+
     if (drawn === 0) {
         console.warn('[RhythmGen] No answer lines drawn — check realX capture');
     }
@@ -8507,7 +8533,10 @@ function handleStaveSeekClick(e, lineWrap, ws, worksheetRoot) {
         if (vbW > 0 && cssW > 0) coordScale = cssW / vbW;
     }
 
-    const lines = Array.from(lineWrap.querySelectorAll('.counting-layer line.answer-line, .counting-layer line'));
+    // Answer lines live in the music SVG (same viewBox as notes); fall back to overlay
+    const lines = Array.from(lineWrap.querySelectorAll(
+        'svg line.answer-line, .answer-counting-layer line.answer-line, .counting-layer line.answer-line, .counting-layer line'
+    ));
     if (!lines.length) return;
 
     let best = null;
@@ -8619,8 +8648,9 @@ function buildMeasureLineMap(worksheetRoot) {
         const count = parseInt(lw.dataset.measureCount, 10);
         if (isNaN(start) || isNaN(count) || count < 1) return;
         // Counting lines are sequential across measures on this line
-        const lines = lw.querySelectorAll('.counting-layer line');
-        // We don't know per-measure slot counts from lines alone without events —
+        const lines = lw.querySelectorAll(
+            'svg line.answer-line, .answer-counting-layer line.answer-line, .counting-layer line.answer-line, .counting-layer line'
+        );
         // store line ref; slot offsets computed when building schedule with events.
         for (let k = 0; k < count; k++) {
             map.set(start + k, {
