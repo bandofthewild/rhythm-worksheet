@@ -64,6 +64,9 @@
             margin: 0 auto !important;
             overflow: visible !important;
             -webkit-overflow-scrolling: touch;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
         }
         /* Outer shell: holds one letter page scaled to fit the embed width */
         .worksheet-page-fit {
@@ -73,11 +76,13 @@
             overflow: hidden;
             position: relative;
             box-sizing: border-box;
+            /* Host for scaled letter page — JS centers via translate + scale */
+            display: block;
         }
         body.wix-embed .worksheet-set {
             width: 100% !important;
             max-width: 100% !important;
-            margin-bottom: 0 !important;
+            margin: 0 auto !important;
             overflow: visible !important;
         }
         /*
@@ -97,7 +102,7 @@
                 transform-origin: top left;
                 overflow: hidden !important;
                 padding: 0.15in 0.45in 0.12in 0.45in !important;
-                margin-bottom: 0 !important;
+                margin: 0 auto !important;
             }
         }
         body.wix-embed .worksheet-music,
@@ -1217,6 +1222,7 @@ function fitWorksheetSetToHost(setEl) {
         page.style.maxHeight = LETTER_PAGE_H_PX + 'px';
         page.style.transformOrigin = 'top left';
         page.style.boxSizing = 'border-box';
+        page.style.margin = '0';
 
         const pageW = LETTER_PAGE_W_PX;
         const pageH = LETTER_PAGE_H_PX;
@@ -1229,17 +1235,26 @@ function fitWorksheetSetToHost(setEl) {
         // Never upscale past 1 (desktop embed wide enough)
         scale = Math.max(0.12, Math.min(1, scale));
 
-        page.style.transform = `scale(${scale})`;
+        // Center in embed: scale first, then translate in screen px
+        // CSS applies rightmost transform first → scale then translateX
+        const scaledW = pageW * scale;
+        const offsetX = Math.max(0, (hostW - scaledW) / 2);
+        page.style.transform = `translateX(${offsetX}px) scale(${scale})`;
+
         shell.style.width = '100%';
         shell.style.maxWidth = '100%';
         shell.style.height = Math.ceil(pageH * scale) + 'px';
         shell.style.overflow = 'hidden';
+        shell.style.marginLeft = 'auto';
+        shell.style.marginRight = 'auto';
         shell.dataset.pageScale = String(scale);
+        shell.dataset.pageOffsetX = String(offsetX);
     });
     console.log('[RhythmGen] page fit', {
         hostW,
         hostH,
-        scale: shells[0] && shells[0].dataset.pageScale
+        scale: shells[0] && shells[0].dataset.pageScale,
+        offsetX: shells[0] && shells[0].dataset.pageOffsetX
     });
 }
 
@@ -8192,7 +8207,7 @@ function addCountingLinesWithRealPositions(targetSvg, staves, measureNoteData, s
             numText.setAttribute('dominant-baseline', 'auto');
             numText.setAttribute('font-family', 'Arial, Helvetica, sans-serif');
             numText.setAttribute('font-size', '9');
-            numText.setAttribute('font-weight', '600');
+            numText.setAttribute('font-weight', 'normal');
             numText.setAttribute('fill', '#64748b');
             numText.setAttribute('class', 'measure-number');
             numText.textContent = String(mNum);
