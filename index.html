@@ -7876,25 +7876,12 @@ function renderOneLineWithVexFlow(renderDiv, countingSvg, timeSig, lineRhythms, 
         }
     });
     
-    // Capture real absolute X for EVERY rendered note/rest (one answer line each).
-    // Keep array aligned with staveNotes (push null if lookup fails, then interpolate).
+    // Capture visual CENTER X under each notehead/rest (not tick/left edge).
+    // getAbsoluteX alone sits left of the glyph → answer lines look offset left.
     measureNoteData.forEach((group, gi) => {
         const stave = staves[gi];
         group.staveNotes.forEach(note => {
-            let ax = null;
-            try {
-                if (typeof note.getAbsoluteX === 'function') ax = note.getAbsoluteX();
-            } catch (e) {}
-            if (ax == null || isNaN(ax)) {
-                try {
-                    const nx = (typeof note.getX === 'function') ? note.getX() : 0;
-                    const ns = (stave && typeof stave.getNoteStartX === 'function')
-                        ? stave.getNoteStartX()
-                        : (stave ? stave.getX() + 20 : 20);
-                    ax = ns + nx;
-                } catch (e2) {}
-            }
-            group.realX.push((ax != null && !isNaN(ax)) ? ax : null);
+            group.realX.push(getRenderedNoteCenterX(note, stave));
         });
         // Interpolate any nulls between known neighbors
         const xs = group.realX;
@@ -7965,6 +7952,7 @@ function renderOneLineWithVexFlow(renderDiv, countingSvg, timeSig, lineRhythms, 
             svgEl.setAttribute('height', String(h));
 
             if (countingSvg) {
+                // Match music SVG box exactly so answer-line X maps 1:1 onto noteheads
                 countingSvg.setAttribute('viewBox', `0 0 ${svgW} ${lineH}`);
                 countingSvg.setAttribute('preserveAspectRatio', 'xMinYMid meet');
                 countingSvg.setAttribute('width', '100%');
@@ -7974,6 +7962,10 @@ function renderOneLineWithVexFlow(renderDiv, countingSvg, timeSig, lineRhythms, 
                 countingSvg.style.height = h + 'px';
                 countingSvg.style.left = '0';
                 countingSvg.style.top = '0';
+                countingSvg.style.right = 'auto';
+                countingSvg.style.margin = '0';
+                countingSvg.style.padding = '0';
+                countingSvg.style.boxSizing = 'border-box';
             }
             if (renderDiv.parentElement) {
                 renderDiv.parentElement.style.minHeight = (h + 8) + 'px';
@@ -7983,6 +7975,8 @@ function renderOneLineWithVexFlow(renderDiv, countingSvg, timeSig, lineRhythms, 
             renderDiv.style.width = '100%';
             renderDiv.style.height = h + 'px';
             renderDiv.style.overflow = 'visible';
+            renderDiv.style.margin = '0';
+            renderDiv.style.padding = '0';
         }
     } catch (e) {
         console.warn('[RhythmGen] fluid SVG fit failed', e);
@@ -7990,6 +7984,79 @@ function renderOneLineWithVexFlow(renderDiv, countingSvg, timeSig, lineRhythms, 
     
     // Draw counting lines + measure numbers using the real rendered positions
     addCountingLinesWithRealPositions(countingSvg, staves, measureNoteData, staveY, staveH, answerGapPx, startMeasureIndex);
+}
+
+/**
+ * Visual horizontal center of a drawn notehead or rest (SVG user units).
+ * VexFlow getAbsoluteX() is the tick/left anchor — left of the glyph — so answer
+ * dashes looked shifted left of the note. Prefer notehead edges, then bounds.
+ */
+function getRenderedNoteCenterX(note, stave) {
+    if (!note) return null;
+
+    const isRest = (() => {
+        try {
+            if (typeof note.isRest === 'function') return !!note.isRest();
+            return !!note.isRest;
+        } catch (e) { return false; }
+    })();
+
+    // 1) Noteheads: begin/end ignore flags/beams that would pull center sideways
+    if (!isRest) {
+        try {
+            if (typeof note.getNoteHeadBeginX === 'function' &&
+                typeof note.getNoteHeadEndX === 'function') {
+                const a = note.getNoteHeadBeginX();
+                const b = note.getNoteHeadEndX();
+                if (a != null && b != null && !isNaN(a) && !isNaN(b) && b >= a) {
+                    return (a + b) / 2;
+                }
+            }
+        } catch (e) {}
+    }
+
+    // 2) Bounding box after draw (excellent for rests; OK fallback for notes)
+    try {
+        if (typeof note.getBoundingBox === 'function') {
+            const bb = note.getBoundingBox();
+            if (bb) {
+                const x = (typeof bb.getX === 'function') ? bb.getX() : bb.x;
+                const w = (typeof bb.getW === 'function') ? bb.getW()
+                    : (bb.w != null ? bb.w : bb.width);
+                if (x != null && !isNaN(x) && w != null && !isNaN(w) && w > 0.5) {
+                    return x + w / 2;
+                }
+            }
+        }
+    } catch (e) {}
+
+    // 3) Metrics width from absolute X
+    try {
+        const ax = (typeof note.getAbsoluteX === 'function') ? note.getAbsoluteX() : null;
+        if (ax != null && !isNaN(ax) && typeof note.getMetrics === 'function') {
+            const m = note.getMetrics() || {};
+            const nw = m.noteWidth || m.width || 0;
+            if (nw > 0) return ax + nw / 2;
+        }
+    } catch (e) {}
+
+    // 4) Absolute X is left-biased — nudge by ~½ notehead at typical staff scale
+    try {
+        if (typeof note.getAbsoluteX === 'function') {
+            const ax = note.getAbsoluteX();
+            if (ax != null && !isNaN(ax)) return ax + (isRest ? 4 : 5.5);
+        }
+    } catch (e) {}
+
+    try {
+        const nx = (typeof note.getX === 'function') ? note.getX() : 0;
+        const ns = (stave && typeof stave.getNoteStartX === 'function')
+            ? stave.getNoteStartX()
+            : (stave ? stave.getX() + 20 : 20);
+        return ns + nx + 5.5;
+    } catch (e2) {}
+
+    return null;
 }
 
 function addCountingLinesWithRealPositions(countingSvg, staves, measureNoteData, staveY, staveHeight, answerGapPx, startMeasureIndex) {
@@ -8110,7 +8177,8 @@ function addCountingLinesWithRealPositions(countingSvg, staves, measureNoteData,
         } catch (e) {}
         
         const slots = buildAnswerSlots(data, stave);
-        const lineLen = 6.5;
+        // Half-length of the short answer dash (centered on headX)
+        const lineLen = 5.5;
         const measureIndex = measureStart + mIdx;
         
         slots.forEach((slot, slotInMeasure) => {
@@ -8118,12 +8186,13 @@ function addCountingLinesWithRealPositions(countingSvg, staves, measureNoteData,
             if (headX == null || isNaN(headX)) return;
             
             const line = document.createElementNS(ns, 'line');
-            line.setAttribute('x1', headX - lineLen);
-            line.setAttribute('y1', countY);
-            line.setAttribute('x2', headX + lineLen);
-            line.setAttribute('y2', countY);
+            line.setAttribute('x1', String(headX - lineLen));
+            line.setAttribute('y1', String(countY));
+            line.setAttribute('x2', String(headX + lineLen));
+            line.setAttribute('y2', String(countY));
             line.setAttribute('stroke', '#475569');
             line.setAttribute('stroke-width', '1.25');
+            line.setAttribute('stroke-linecap', 'round');
             line.setAttribute('class', 'answer-line');
             // Seek metadata: click maps to this note/rest
             line.setAttribute('data-measure', String(measureIndex));
@@ -8133,8 +8202,11 @@ function addCountingLinesWithRealPositions(countingSvg, staves, measureNoteData,
         });
     });
     
-    countingSvg.setAttribute('height', String(svgH));
-    countingSvg.style.height = svgH + 'px';
+    // Keep height already set by fluid fit (do not clobber viewBox alignment)
+    if (!countingSvg.style.height && svgH) {
+        countingSvg.setAttribute('height', String(svgH));
+        countingSvg.style.height = svgH + 'px';
+    }
     if (drawn === 0) {
         console.warn('[RhythmGen] No answer lines drawn — check realX capture');
     }
